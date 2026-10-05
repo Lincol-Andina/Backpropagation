@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Didáctico de Backpropagation - Inteligencia Artificial</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- KaTeX CSS & JS for LaTeX Math Rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#2563eb',
+                            600: '#1d4ed8',
+                            700: '#1e40af',
+                            900: '#1e3a8a',
+                        },
+                        math: {
+                            forward: '#10b981',
+                            loss: '#f59e0b',
+                            backprop: '#ec4899',
+                            update: '#6366f1'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'Courier New', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar & styling */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .math-box { font-family: 'Fira Code', monospace; }
+        .node-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.08); opacity: 0.9; }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
+    <!-- AVISO: version congelada. La version mantenida es la aplicacion Streamlit del repositorio. -->
+    <div style="background:#7f1d1d;color:#fee2e2;padding:10px 16px;font-size:13px;text-align:center;border-bottom:1px solid #991b1b">
+        <strong>Version congelada (sin mantenimiento).</strong>
+        Este archivo HTML se conserva por si necesitas usarlo sin conexion.
+        Contiene errores conocidos: el texto matematico se muestra con signos
+        <code>$</code> sin renderizar, el ejemplo XOR solo entrena un patron de los cuatro,
+        y el boton <em>Anterior</em> no reconstruye los valores del paso.
+        Usa la aplicacion Streamlit para la version correcta.
+    </div>
+
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-50 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-brand-600 rounded-xl shadow-md text-white">
+                    <i class="fa-solid fa-brain text-2xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold px-2 py-0.5 bg-brand-900 text-brand-100 border border-brand-500/30 rounded">Curso: Inteligencia Artificial</span>
+                        <span class="text-xs text-slate-400">Nivel Universitario</span>
+                    </div>
+                    <h1 class="text-lg font-bold text-white tracking-tight">Simulador Interactivo de Backpropagation en Perceptrón Multicapa (MLP)</h1>
+                </div>
+            </div>
+
+            <!-- Header Controls / Info -->
+            <div class="flex items-center gap-3">
+                <button onclick="toggleModal('modal-help')" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-circle-question text-brand-500"></i> Guía Rápida
+                </button>
+                <div class="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-300 flex items-center gap-2">
+                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Modo Docente Activo</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Control Bar -->
+    <section class="bg-slate-800/80 border-b border-slate-700/60 backdrop-blur px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <!-- Preset & Parameter Settings -->
+            <div class="flex flex-wrap items-center gap-4 text-xs">
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">Ejemplo Didáctico:</label>
+                    <select id="preset-select" onchange="loadPreset()" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:ring-2 focus:ring-brand-500 outline-none">
+                        <option value="simple">1. Ejemplo Numérico Estándar (2-2-2)</option>
+                        <option value="xor">2. Problema Lógico XOR (2-2-1)</option>
+                        <option value="custom">3. Configuración Personalizada</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">Función Activación ($\sigma$):</label>
+                    <select id="activation-select" onchange="updateActivation()" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:ring-2 focus:ring-brand-500 outline-none">
+                        <option value="sigmoid">Sigmoide: 1 / (1 + e⁻ᶻ)</option>
+                        <option value="tanh">Tanh: (eᶻ - e⁻ᶻ) / (eᶻ + e⁻ᶻ)</option>
+                        <option value="relu">ReLU: max(0, z)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">Tasa de Aprendizaje ($\eta$):</label>
+                    <div class="flex items-center gap-2">
+                        <input type="range" id="lr-slider" min="0.01" max="1.0" step="0.01" value="0.5" oninput="updateLRDisplay()" class="w-24 accent-brand-500">
+                        <span id="lr-val" class="font-mono text-brand-100 bg-slate-900 px-2 py-1 rounded border border-slate-700">0.50</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Execution Action Buttons -->
+            <div class="flex items-center gap-2">
+                <button onclick="prevStep()" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-backward-step"></i> Anterior
+                </button>
+                <button id="btn-next-step" onclick="nextStep()" class="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-semibold shadow-md transition flex items-center gap-1.5">
+                    <span>Siguiente Paso</span> <i class="fa-solid fa-forward-step"></i>
+                </button>
+                <button onclick="runFullEpoch()" class="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-bolt"></i> Época Completa
+                </button>
+                <button id="btn-auto" onclick="toggleAutoPlay()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-play" id="auto-icon"></i> <span id="auto-text">Auto-Entrenar</span>
+                </button>
+                <button onclick="resetNetwork()" class="px-3 py-2 bg-rose-700 hover:bg-rose-600 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-rotate-left"></i> Reiniciar
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Phase Stepper Navigation Bar -->
+    <div class="bg-slate-900 border-b border-slate-800 px-4 py-2">
+        <div class="max-w-7xl mx-auto flex items-center justify-between text-xs overflow-x-auto gap-2">
+            <div id="phase-0" class="phase-badge flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-400">
+                <span class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center font-bold text-[10px]">0</span>
+                <span>Inicio / Entrada</span>
+            </div>
+            <i class="fa-solid fa-chevron-right text-slate-600 text-[10px]"></i>
+            <div id="phase-1" class="phase-badge flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-400">
+                <span class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center font-bold text-[10px]">1</span>
+                <span>Forward (Oculta)</span>
+            </div>
+            <i class="fa-solid fa-chevron-right text-slate-600 text-[10px]"></i>
+            <div id="phase-2" class="phase-badge flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-400">
+                <span class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center font-bold text-[10px]">2</span>
+                <span>Forward (Salida)</span>
+            </div>
+            <i class="fa-solid fa-chevron-right text-slate-600 text-[10px]"></i>
+            <div id="phase-3" class="phase-badge flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-400">
+                <span class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center font-bold text-[10px]">3</span>
+                <span>Cálculo Error (L)</span>
+            </div>
+            <i class="fa-solid fa-chevron-right text-slate-600 text-[10px]"></i>
+            <div id="phase-4" class="phase-badge flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-400">
+                <span class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center font-bold text-[10px]">4</span>
+                <span>Backprop (Salida)</span>
+            </div>
+            <i class="fa-solid fa-chevron-right text-slate-600 text-[10px]"></i>
+            <div id="phase-5" class="phase-badge flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-400">
+                <span class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center font-bold text-[10px]">5</span>
+                <span>Backprop (Oculta)</span>
+            </div>
+            <i class="fa-solid fa-chevron-right text-slate-600 text-[10px]"></i>
+            <div id="phase-6" class="phase-badge flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-400">
+                <span class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center font-bold text-[10px]">6</span>
+                <span>Actualización $W, B$</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 py-4 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow w-full">
+
+        <!-- LEFT COLUMN: Neural Network Visualization & Matrix Inspector (7 cols) -->
+        <section class="lg:col-span-7 flex flex-col gap-4">
+            
+            <!-- Visual Network Canvas Container -->
+            <div class="bg-slate-800/90 rounded-xl border border-slate-700 shadow-xl p-4 flex flex-col relative overflow-hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-project-diagram text-brand-500"></i>
+                        <h2 class="font-bold text-sm text-slate-200">Arquitectura y Flujo de Señal de la Red</h2>
+                    </div>
+                    <span id="epoch-counter" class="text-xs font-mono bg-slate-900 text-brand-100 px-2.5 py-1 rounded-md border border-slate-700">Época: 0 | Paso: 0/6</span>
+                </div>
+
+                <!-- SVG Network Canvas -->
+                <div class="relative w-full h-80 bg-slate-950/70 rounded-lg border border-slate-800 flex items-center justify-center overflow-hidden">
+                    <svg id="net-svg" class="w-full h-full" viewBox="0 0 700 320" preserveAspectRatio="xMidYMid meet">
+                        <!-- Dynamic SVG Elements will be rendered by JS -->
+                    </svg>
+                </div>
+
+                <!-- Legend & Node Status -->
+                <div class="mt-3 grid grid-cols-3 gap-2 text-[11px] text-center">
+                    <div class="bg-slate-900/80 p-1.5 rounded border border-emerald-500/30 text-emerald-400">
+                        <i class="fa-solid fa-arrow-right-long"></i> Forward Pass ($z, a$)
+                    </div>
+                    <div class="bg-slate-900/80 p-1.5 rounded border border-rose-500/30 text-rose-400">
+                        <i class="fa-solid fa-arrow-left-long"></i> Backpropagation ($\delta$)
+                    </div>
+                    <div class="bg-slate-900/80 p-1.5 rounded border border-indigo-500/30 text-indigo-400">
+                        <i class="fa-solid fa-arrows-rotate"></i> Gradiente y Peso ($w^{(new)}$)
+                    </div>
+                </div>
+            </div>
+
+            <!-- Matrix Inspector & Loss Graph (Tabs) -->
+            <div class="bg-slate-800/90 rounded-xl border border-slate-700 shadow-xl p-4 flex flex-col">
+                <div class="flex items-center justify-between border-b border-slate-700 pb-2 mb-3">
+                    <div class="flex gap-2">
+                        <button onclick="switchInspectorTab('matrices')" id="tab-btn-matrices" class="px-3 py-1 bg-brand-600 text-white rounded text-xs font-semibold transition">
+                            <i class="fa-solid fa-table-cells"></i> Inspectores Matriciales ($W, B$)
+                        </button>
+                        <button onclick="switchInspectorTab('chart')" id="tab-btn-chart" class="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-xs font-semibold transition">
+                            <i class="fa-solid fa-chart-line"></i> Curva de Pérdida ($E_{total}$)
+                        </button>
+                    </div>
+                    <span class="text-[11px] text-slate-400 font-mono">Valores en tiempo real</span>
+                </div>
+
+                <!-- Tab Content 1: Matrix Tables -->
+                <div id="tab-matrices" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Layer 1 Weights -->
+                    <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-700">
+                        <h4 class="text-xs font-bold text-slate-300 mb-2 flex items-center justify-between">
+                            <span>Pesos Capa Oculta $W^{(1)}$</span>
+                            <span class="text-[10px] text-brand-400 font-normal">(Entrada $\to$ Oculta)</span>
+                        </h4>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-xs font-mono text-center">
+                                <thead>
+                                    <tr class="text-slate-500 border-b border-slate-800">
+                                        <th class="p-1">De \ A</th>
+                                        <th class="p-1 text-emerald-400">Neurona $h_1$</th>
+                                        <th class="p-1 text-emerald-400">Neurona $h_2$</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b border-slate-800/50">
+                                        <td class="p-1 text-slate-400 font-semibold">$x_1$</td>
+                                        <td class="p-1"><input id="input-w11" type="number" step="0.01" class="w-16 bg-slate-800 border border-slate-700 rounded text-center text-slate-100 p-0.5" onchange="manualWeightUpdate()"></td>
+                                        <td class="p-1"><input id="input-w12" type="number" step="0.01" class="w-16 bg-slate-800 border border-slate-700 rounded text-center text-slate-100 p-0.5" onchange="manualWeightUpdate()"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-1 text-slate-400 font-semibold">$x_2$</td>
+                                        <td class="p-1"><input id="input-w21" type="number" step="0.01" class="w-16 bg-slate-800 border border-slate-700 rounded text-center text-slate-100 p-0.5" onchange="manualWeightUpdate()"></td>
+                                        <td class="p-1"><input id="input-w22" type="number" step="0.01" class="w-16 bg-slate-800 border border-slate-700 rounded text-center text-slate-100 p-0.5" onchange="manualWeightUpdate()"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-2 flex items-center justify-between text-[11px] pt-1 border-t border-slate-800">
+                            <span class="text-slate-400">Sesgos $b^{(1)}$:</span>
+                            <div class="flex gap-2">
+                                <span class="font-mono text-emerald-400">b1: <input id="input-b11" type="number" step="0.01" class="w-14 bg-slate-800 border border-slate-700 rounded text-center text-slate-100 p-0.5" onchange="manualWeightUpdate()"></span>
+                                <span class="font-mono text-emerald-400">b2: <input id="input-b12" type="number" step="0.01" class="w-14 bg-slate-800 border border-slate-700 rounded text-center text-slate-100 p-0.5" onchange="manualWeightUpdate()"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Layer 2 Weights -->
+                    <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-700">
+                        <h4 class="text-xs font-bold text-slate-300 mb-2 flex items-center justify-between">
+                            <span>Pesos Capa Salida $W^{(2)}$</span>
+                            <span class="text-[10px] text-brand-400 font-normal">(Oculta $\to$ Salida)</span>
+                        </h4>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-xs font-mono text-center">
+                                <thead>
+                                    <tr class="text-slate-500 border-b border-slate-800">
+                                        <th class="p-1">De \ A</th>
+                                        <th class="p-1 text-indigo-400">Salida $o_1$</th>
+                                        <th id="th-o2" class="p-1 text-indigo-400">Salida $o_2$</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b border-slate-800/50">
+                                        <td class="p-1 text-slate-400 font-semibold">$h_1$</td>
+                                        <td class="p-1"><input id="input-w2_11" type="number" step="0.01" class="w-16 bg-slate-800 border border-slate-700 rounded text-center text-slate-100 p-0.5" onchange="manualWeightUpdate()"></td>
+                                        <td class="p-1"><input id="input-w2_12" type="number" step="0.01" class="w-16 bg-slate-800 border border-slate-700 rounded text-center text-slate-100 p-0.5" onchange="manualWeightUpdate()"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-1 text-slate-400 font-semibold">$h_2$</td>
+                                        <td class="p-1"><input id="input-w2_21" type="number" step="0.01" class="w-16 bg-slate-800 border border-slate-700 rounded text-center text-slate-100 p-0.5" onchange="manualWeightUpdate()"></td>
+                                        <td class="p-1"><input id="input-w2_22" type="number" step="0.01" class="w-16 bg-slate-800 border border-slate-700 rounded text-center text-slate-100 p-0.5" onchange="manualWeightUpdate()"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-2 flex items-center justify-between text-[11px] pt-1 border-t border-slate-800">
+                            <span class="text-slate-400">Sesgos $b^{(2)}$:</span>
+                            <div class="flex gap-2">
+                                <span class="font-mono text-indigo-400">b1: <input id="input-b21" type="number" step="0.01" class="w-14 bg-slate-800 border border-slate-700 rounded text-center text-slate-100 p-0.5" onchange="manualWeightUpdate()"></span>
+                                <span id="span-b22" class="font-mono text-indigo-400">b2: <input id="input-b22" type="number" step="0.01" class="w-14 bg-slate-800 border border-slate-700 rounded text-center text-slate-100 p-0.5" onchange="manualWeightUpdate()"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Content 2: Chart.js Loss Curve -->
+                <div id="tab-chart" class="hidden">
+                    <div class="w-full h-48 bg-slate-950 p-2 rounded-lg border border-slate-800">
+                        <canvas id="lossChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- RIGHT COLUMN: Mathematical Computation Inspector & Dynamic Derivations (5 cols) -->
+        <section class="lg:col-span-5 flex flex-col gap-4">
+            
+            <div class="bg-slate-800/90 rounded-xl border border-slate-700 shadow-xl p-5 flex flex-col h-full">
+                <!-- Header -->
+                <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-square-root-variable text-amber-400 text-lg"></i>
+                        <h2 class="font-bold text-sm text-slate-200">Desglose Matemático Paso a Paso</h2>
+                    </div>
+                    <span id="step-badge" class="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full text-[10px] font-semibold">
+                        Paso 0: Preparación
+                    </span>
+                </div>
+
+                <!-- Step Math Container with LaTeX dynamically injected -->
+                <div id="math-step-container" class="space-y-4 overflow-y-auto max-h-[520px] pr-1">
+                    <!-- Dynamic calculations will be rendered here -->
+                </div>
+
+                <!-- Professor Commentary Note Box -->
+                <div class="mt-auto pt-4 border-t border-slate-700/80">
+                    <div class="bg-brand-900/40 border border-brand-500/30 rounded-lg p-3 text-xs text-brand-100 flex items-start gap-2.5">
+                        <i class="fa-solid fa-chalkboard-user text-brand-400 text-base mt-0.5"></i>
+                        <div>
+                            <span class="font-bold text-brand-300 block mb-0.5">Comentario Académico del Profesor:</span>
+                            <p id="prof-comment" class="leading-relaxed text-slate-300">
+                                Haz clic en <strong>"Siguiente Paso"</strong> para iniciar la simulación numérica. Observaremos cómo fluyen los datos y cómo la regla de la cadena ajusta los pesos.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Theoretical Background & Self-Assessment Section -->
+    <section class="max-w-7xl mx-auto px-4 py-6 w-full">
+        <div class="bg-slate-800/90 rounded-xl border border-slate-700 shadow-xl overflow-hidden">
+            
+            <div class="flex border-b border-slate-700 bg-slate-900/60">
+                <button onclick="switchTheoryTab('derivation')" id="tab-theory-derivation" class="px-5 py-3 text-xs font-bold text-brand-400 border-b-2 border-brand-500 bg-slate-800 transition flex items-center gap-2">
+                    <i class="fa-solid fa-graduation-cap"></i> Demostración Matemática: Regla de la Cadena
+                </button>
+                <button onclick="switchTheoryTab('quiz')" id="tab-theory-quiz" class="px-5 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition flex items-center gap-2">
+                    <i class="fa-solid fa-clipboard-question"></i> Autoevaluación para Estudiantes
+                </button>
+            </div>
+
+            <!-- Tab: Mathematical Derivation -->
+            <div id="content-theory-derivation" class="p-6 space-y-4 text-xs text-slate-300 leading-relaxed">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-function text-emerald-400"></i> Fundamentos del Algoritmo de Retropropagación (Backpropagation)
+                </h3>
+                <p>
+                    El algoritmo de Backpropagation calcula el gradiente del error global respecto a cada peso de la red aplicando iterativamente la <strong>Regla de la Cadena</strong> de cálculo diferencial.
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 my-4">
+                    <div class="bg-slate-900/90 p-4 rounded-lg border border-slate-700 space-y-2">
+                        <h4 class="font-bold text-emerald-400 text-xs">1. Capa de Salida (Gradiente Directo)</h4>
+                        <p>Dado el Error cuadrático medio para una neurona $k$ de salida:</p>
+                        <div id="latex-eq-1" class="py-1 text-center font-mono"></div>
+                        <p>Buscamos la derivada parcial $\frac{\partial E}{\partial w_{jk}^{(2)}}$. Aplicando regla de la cadena:</p>
+                        <div id="latex-eq-2" class="py-1 text-center font-mono"></div>
+                        <p>Definimos el error local de la salida $\delta_k^{(2)} = (a_k^{(2)} - y_k) \cdot \sigma'(z_k^{(2)})$. Por tanto:</p>
+                        <div id="latex-eq-3" class="py-1 text-center font-mono"></div>
+                    </div>
+
+                    <div class="bg-slate-900/90 p-4 rounded-lg border border-slate-700 space-y-2">
+                        <h4 class="font-bold text-rose-400 text-xs">2. Capa Oculta (Propagación del Error Hacia Atrás)</h4>
+                        <p>Para un peso $w_{ij}^{(1)}$ en la capa oculta, la influencia en el error pasa por <em>todas</em> las neuronas de salida $k$:</p>
+                        <div id="latex-eq-4" class="py-1 text-center font-mono"></div>
+                        <p>Donde la señal de error acumulada de la capa oculta $\delta_j^{(1)}$ es:</p>
+                        <div id="latex-eq-5" class="py-1 text-center font-mono"></div>
+                        <p>Y la actualización de peso mediante Descenso de Gradiente es: $w_{ij}^{(new)} = w_{ij}^{(old)} - \eta \cdot \frac{\partial E}{\partial w_{ij}}$</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Student Quiz -->
+            <div id="content-theory-quiz" class="hidden p-6 space-y-4">
+                <h3 class="text-sm font-bold text-white mb-2">Comprueba tu comprensión del algoritmo</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Q1 -->
+                    <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 space-y-2 text-xs">
+                        <p class="font-semibold text-slate-200">1. ¿Por qué es necesaria la derivada de la función de activación ($\sigma'$) durante el Backpropagation?</p>
+                        <div class="space-y-1">
+                            <button onclick="checkQuiz(1, 'A')" class="w-full text-left p-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">A) Para calcular la tasa de aprendizaje $\eta$.</button>
+                            <button onclick="checkQuiz(1, 'B')" class="w-full text-left p-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">B) Debido a la regla de la cadena al derivar la activación respecto a su suma ponderada $z$.</button>
+                            <button onclick="checkQuiz(1, 'C')" class="w-full text-left p-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">C) Para convertir pesos negativos en positivos.</button>
+                        </div>
+                        <div id="quiz-res-1" class="mt-2 text-[11px] font-bold"></div>
+                    </div>
+
+                    <!-- Q2 -->
+                    <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 space-y-2 text-xs">
+                        <p class="font-semibold text-slate-200">2. Si aumentamos demasiado la Tasa de Aprendizaje ($\eta = 10.0$), ¿qué suele ocurrir?</p>
+                        <div class="space-y-1">
+                            <button onclick="checkQuiz(2, 'A')" class="w-full text-left p-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">A) El algoritmo converge más rápido y de forma estable.</button>
+                            <button onclick="checkQuiz(2, 'B')" class="w-full text-left p-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">B) Los pesos oscilan drásticamente y la función de pérdida puede divergir.</button>
+                            <button onclick="checkQuiz(2, 'C')" class="w-full text-left p-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">C) Los deltas ($\delta$) se vuelven exactamente cero.</button>
+                        </div>
+                        <div id="quiz-res-2" class="mt-2 text-[11px] font-bold"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Modal Guía de Uso -->
+    <div id="modal-help" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-xl max-w-xl w-full p-6 space-y-4 text-xs text-slate-300 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                    <i class="fa-solid fa-graduation-cap text-brand-500"></i> Instrucciones del Simulador
+                </h3>
+                <button onclick="toggleModal('modal-help')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-base"></i></button>
+            </div>
+            <div class="space-y-2 leading-relaxed">
+                <p>Este simulador fue diseñado para el curso de <strong>Inteligencia Artificial</strong> para descomponer con exactitud matemática el funcionamiento interno de un Perceptrón Multicapa:</p>
+                <ul class="list-disc list-inside space-y-1 text-slate-300">
+                    <li><strong class="text-emerald-400">Forward Pass:</strong> Calcula la combinación lineal ($z = \sum w \cdot x + b$) y la activación ($a = \sigma(z)$).</li>
+                    <li><strong class="text-amber-400">Función de Pérdida:</strong> Evalúa la discrepancia entre la salida real ($a$) y el valor deseado ($y$).</li>
+                    <li><strong class="text-rose-400">Backpropagation:</strong> Propaga los gradientes de error ($\delta$) desde la salida hacia la capa oculta.</li>
+                    <li><strong class="text-indigo-400">Actualización:</strong> Ajusta los pesos utilizando el Descenso de Gradiente ($w^{(new)} = w^{(old)} - \eta \cdot \nabla E$).</li>
+                </ul>
+                <p class="pt-2 text-slate-400">
+                    Puedes modificar la tasa de aprendizaje, editar pesos manualmente en las tablas o elegir presets como el problema <strong>XOR</strong>.
+                </p>
+            </div>
+            <div class="text-right pt-2 border-t border-slate-700">
+                <button onclick="toggleModal('modal-help')" class="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-semibold">Entendido</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS Logic -->
+    <script>
+        /* State Variables */
+        let currentStep = 0; // 0 to 6
+        let epochCount = 0;
+        let isAutoPlaying = false;
+        let autoInterval = null;
+        let lossHistory = [];
+        let lossChart = null;
+
+        // Default Network Structure (2-2-2 or 2-2-1)
+        let config = {
+            numInputs: 2,
+            numHidden: 2,
+            numOutputs: 2,
+            learningRate: 0.50,
+            activation: 'sigmoid',
+            preset: 'simple'
+        };
+
+        // Network State
+        let net = {
+            inputs: [0.05, 0.10],
+            targets: [0.01, 0.99],
+            
+            // Layer 1 (Hidden)
+            w1: [[0.15, 0.25],  // w11, w12 (from x1, x2 to h1)
+                 [0.20, 0.30]], // w21, w22 (from x1, x2 to h2)
+            b1: [0.35, 0.35],
+            z1: [0, 0],
+            a1: [0, 0],
+            delta1: [0, 0],
+            grad_w1: [[0, 0], [0, 0]],
+            grad_b1: [0, 0],
+
+            // Layer 2 (Output)
+            w2: [[0.40, 0.50],  // w2_11, w2_12 (from h1, h2 to o1)
+                 [0.45, 0.55]], // w2_21, w2_22 (from h1, h2 to o2)
+            b2: [0.60, 0.60],
+            z2: [0, 0],
+            a2: [0, 0],
+            delta2: [0, 0],
+            grad_w2: [[0, 0], [0, 0]],
+            grad_b2: [0, 0],
+
+            lossTotal: 0,
+            losses: [0, 0]
+        };
+
+        /* Activation Functions & Derivatives */
+        function activate(z, type = config.activation) {
+            if (type === 'sigmoid') return 1 / (1 + Math.exp(-z));
+            if (type === 'tanh') return Math.tanh(z);
+            if (type === 'relu') return Math.max(0, z);
+            return z;
+        }
+
+        function activateDerivative(a, z, type = config.activation) {
+            if (type === 'sigmoid') return a * (1 - a);
+            if (type === 'tanh') return 1 - Math.pow(a, 2);
+            if (type === 'relu') return z > 0 ? 1 : 0;
+            return 1;
+        }
+
+        /* Core Neural Math Computation */
+        function computeForwardPass() {
+            // Layer 1 (Hidden)
+            for (let j = 0; j < config.numHidden; j++) {
+                net.z1[j] = net.inputs[0] * net.w1[0][j] + net.inputs[1] * net.w1[1][j] + net.b1[j];
+                net.a1[j] = activate(net.z1[j]);
+            }
+
+            // Layer 2 (Output)
+            net.lossTotal = 0;
+            for (let k = 0; k < config.numOutputs; k++) {
+                net.z2[k] = net.a1[0] * net.w2[0][k] + net.a1[1] * net.w2[1][k] + net.b2[k];
+                net.a2[k] = activate(net.z2[k]);
+
+                // MSE Loss: 0.5 * (target - output)^2
+                let err = net.targets[k] - net.a2[k];
+                net.losses[k] = 0.5 * Math.pow(err, 2);
+                net.lossTotal += net.losses[k];
+            }
+        }
+
+        function computeBackpropagation() {
+            // Step 1: Output Layer Deltas & Gradients
+            for (let k = 0; k < config.numOutputs; k++) {
+                // dE/da2 = -(target - a2) = a2 - target
+                let dE_da2 = net.a2[k] - net.targets[k];
+                let da2_dz2 = activateDerivative(net.a2[k], net.z2[k]);
+                
+                // delta2 = dE/dz2 = (a2 - target) * sigma'(z2)
+                net.delta2[k] = dE_da2 * da2_dz2;
+
+                // Gradients for w2 and b2
+                for (let j = 0; j < config.numHidden; j++) {
+                    net.grad_w2[j][k] = net.a1[j] * net.delta2[k];
+                }
+                net.grad_b2[k] = net.delta2[k];
+            }
+
+            // Step 2: Hidden Layer Deltas & Gradients
+            for (let j = 0; j < config.numHidden; j++) {
+                let sum_delta_w = 0;
+                for (let k = 0; k < config.numOutputs; k++) {
+                    sum_delta_w += net.delta2[k] * net.w2[j][k];
+                }
+                let da1_dz1 = activateDerivative(net.a1[j], net.z1[j]);
+                net.delta1[j] = sum_delta_w * da1_dz1;
+
+                // Gradients for w1 and b1
+                for (let i = 0; i < config.numInputs; i++) {
+                    net.grad_w1[i][j] = net.inputs[i] * net.delta1[j];
+                }
+                net.grad_b1[j] = net.delta1[j];
+            }
+        }
+
+        function applyGradientUpdates() {
+            let eta = config.learningRate;
+
+            // Update Layer 2
+            for (let j = 0; j < config.numHidden; j++) {
+                for (let k = 0; k < config.numOutputs; k++) {
+                    net.w2[j][k] -= eta * net.grad_w2[j][k];
+                }
+            }
+            for (let k = 0; k < config.numOutputs; k++) {
+                net.b2[k] -= eta * net.grad_b2[k];
+            }
+
+            // Update Layer 1
+            for (let i = 0; i < config.numInputs; i++) {
+                for (let j = 0; j < config.numHidden; j++) {
+                    net.w1[i][j] -= eta * net.grad_w1[i][j];
+                }
+            }
+            for (let j = 0; j < config.numHidden; j++) {
+                net.b1[j] -= eta * net.grad_b1[j];
+            }
+        }
+
+        /* UI Renderers */
+        function renderMathBreakdown() {
+            const container = document.getElementById('math-step-container');
+            const comment = document.getElementById('prof-comment');
+            const stepBadge = document.getElementById('step-badge');
+
+            // Format numbers nicely
+            const fmt = (n) => (typeof n === 'number' ? n.toFixed(5) : n);
+
+            // Step Badges Configuration
+            const badges = [
+                { title: 'Paso 0: Datos de Entrada', color: 'bg-slate-700 text-slate-300' },
+                { title: 'Paso 1: Forward Pass (Capa Oculta)', color: 'bg-emerald-900/80 text-emerald-300 border-emerald-500/40' },
+                { title: 'Paso 2: Forward Pass (Capa Salida)', color: 'bg-emerald-900/80 text-emerald-300 border-emerald-500/40' },
+                { title: 'Paso 3: Cálculo de la Función de Pérdida', color: 'bg-amber-900/80 text-amber-300 border-amber-500/40' },
+                { title: 'Paso 4: Backpropagation (Capa Salida)', color: 'bg-rose-900/80 text-rose-300 border-rose-500/40' },
+                { title: 'Paso 5: Backpropagation (Capa Oculta)', color: 'bg-rose-900/80 text-rose-300 border-rose-500/40' },
+                { title: 'Paso 6: Actualización de Parámetros', color: 'bg-indigo-900/80 text-indigo-300 border-indigo-500/40' },
+            ];
+
+            stepBadge.className = `px-2.5 py-1 border rounded-full text-[10px] font-semibold ${badges[currentStep].color}`;
+            stepBadge.innerText = badges[currentStep].title;
+
+            let html = '';
+
+            if (currentStep === 0) {
+                html = `
+                    <div class="bg-slate-900/90 p-3 rounded-lg border border-slate-700 space-y-2">
+                        <span class="text-xs font-bold text-slate-300">Entradas del Modelo ($X$) y Objetivos ($Y$):</span>
+                        <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                            <div class="bg-slate-800 p-2 rounded">x₁ = <span class="text-emerald-400 font-bold">${fmt(net.inputs[0])}</span></div>
+                            <div class="bg-slate-800 p-2 rounded">x₂ = <span class="text-emerald-400 font-bold">${fmt(net.inputs[1])}</span></div>
+                            <div class="bg-slate-800 p-2 rounded">y₁ = <span class="text-indigo-400 font-bold">${fmt(net.targets[0])}</span></div>
+                            ${config.numOutputs > 1 ? `<div class="bg-slate-800 p-2 rounded">y₂ = <span class="text-indigo-400 font-bold">${fmt(net.targets[1])}</span></div>` : ''}
+                        </div>
+                    </div>
+                `;
+                comment.innerHTML = "Estado inicial cargado. Presiona <strong>'Siguiente Paso'</strong> para evaluar la combinación lineal $z$ y las activaciones $a$ en la capa oculta.";
+            }
+            else if (currentStep === 1) {
+                html = `
+                    <div class="space-y-3 text-xs">
+                        <div class="bg-slate-900/90 p-3 rounded-lg border border-emerald-500/30">
+                            <span class="font-bold text-emerald-400 block mb-1">Neurona Oculta h₁:</span>
+                            <div class="math-box text-slate-300 space-y-1">
+                                <div>z_h1 = (x₁ · w11) + (x₂ · w21) + b1_1</div>
+                                <div class="text-emerald-300 font-bold">z_h1 = (${fmt(net.inputs[0])} × ${fmt(net.w1[0][0])}) + (${fmt(net.inputs[1])} × ${fmt(net.w1[1][0])}) + ${fmt(net.b1[0])} = ${fmt(net.z1[0])}</div>
+                                <div>a_h1 = σ(${fmt(net.z1[0])}) = <span class="text-emerald-400 font-bold">${fmt(net.a1[0])}</span></div>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-900/90 p-3 rounded-lg border border-emerald-500/30">
+                            <span class="font-bold text-emerald-400 block mb-1">Neurona Oculta h₂:</span>
+                            <div class="math-box text-slate-300 space-y-1">
+                                <div>z_h2 = (x₁ · w12) + (x₂ · w22) + b1_2</div>
+                                <div class="text-emerald-300 font-bold">z_h2 = (${fmt(net.inputs[0])} × ${fmt(net.w1[0][1])}) + (${fmt(net.inputs[1])} × ${fmt(net.w1[1][1])}) + ${fmt(net.b1[1])} = ${fmt(net.z1[1])}</div>
+                                <div>a_h2 = σ(${fmt(net.z1[1])}) = <span class="text-emerald-400 font-bold">${fmt(net.a1[1])}</span></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                comment.innerHTML = "Las entradas se ponderan y transfieren mediante la función de activación elegida. La salida de cada neurona oculta ($a_{h1}, a_{h2}$) servirá como entrada para la capa de salida.";
+            }
+            else if (currentStep === 2) {
+                html = `
+                    <div class="space-y-3 text-xs">
+                        <div class="bg-slate-900/90 p-3 rounded-lg border border-emerald-500/30">
+                            <span class="font-bold text-indigo-400 block mb-1">Neurona Salida o₁:</span>
+                            <div class="math-box text-slate-300 space-y-1">
+                                <div>z_o1 = (a_h1 · w2_11) + (a_h2 · w2_21) + b2_1</div>
+                                <div class="text-emerald-300 font-bold">z_o1 = (${fmt(net.a1[0])} × ${fmt(net.w2[0][0])}) + (${fmt(net.a1[1])} × ${fmt(net.w2[2]?net.w2[1][0]:net.w2[1][0])}) + ${fmt(net.b2[0])} = ${fmt(net.z2[0])}</div>
+                                <div>a_o1 = σ(${fmt(net.z2[0])}) = <span class="text-indigo-400 font-bold">${fmt(net.a2[0])}</span></div>
+                            </div>
+                        </div>
+
+                        ${config.numOutputs > 1 ? `
+                        <div class="bg-slate-900/90 p-3 rounded-lg border border-emerald-500/30">
+                            <span class="font-bold text-indigo-400 block mb-1">Neurona Salida o₂:</span>
+                            <div class="math-box text-slate-300 space-y-1">
+                                <div>z_o2 = (a_h1 · w2_12) + (a_h2 · w2_22) + b2_2</div>
+                                <div class="text-emerald-300 font-bold">z_o2 = (${fmt(net.a1[0])} × ${fmt(net.w2[0][1])}) + (${fmt(net.a1[1])} × ${fmt(net.w2[1][1])}) + ${fmt(net.b2[1])} = ${fmt(net.z2[1])}</div>
+                                <div>a_o2 = σ(${fmt(net.z2[1])}) = <span class="text-indigo-400 font-bold">${fmt(net.a2[1])}</span></div>
+                            </div>
+                        </div>` : ''}
+                    </div>
+                `;
+                comment.innerHTML = "Se ha completado la fase <strong>Forward Pass</strong>. Ahora conocemos la predicción actual de la red ($a_{o1}, a_{o2}$). A continuación calcularemos el error cometido.";
+            }
+            else if (currentStep === 3) {
+                html = `
+                    <div class="bg-slate-900/90 p-3 rounded-lg border border-amber-500/30 space-y-2 text-xs">
+                        <span class="font-bold text-amber-400 block">Error Cuadrático Medio (MSE):</span>
+                        <div class="math-box text-slate-300 space-y-1">
+                            <div>E_o1 = ½ · (y₁ - a_o1)² = ½ · (${fmt(net.targets[0])} - ${fmt(net.a2[0])})² = <span class="text-amber-300 font-bold">${fmt(net.losses[0])}</span></div>
+                            ${config.numOutputs > 1 ? `<div>E_o2 = ½ · (y₂ - a_o2)² = ½ · (${fmt(net.targets[1])} - ${fmt(net.a2[1])})² = <span class="text-amber-300 font-bold">${fmt(net.losses[1])}</span></div>` : ''}
+                            <div class="pt-2 border-t border-slate-800 text-amber-400 font-bold text-sm">
+                                E_total = ${config.numOutputs > 1 ? `E_o1 + E_o2 = ` : ''}${fmt(net.lossTotal)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                comment.innerHTML = "El error total cuantifica qué tan alejada está la predicción del valor real objetivo. El objetivo del entrenamiento es minimizar $E_{total}$.";
+            }
+            else if (currentStep === 4) {
+                html = `
+                    <div class="space-y-3 text-xs">
+                        <div class="bg-slate-900/90 p-3 rounded-lg border border-rose-500/30">
+                            <span class="font-bold text-rose-400 block mb-1">Delta de Salida δ_o1 y Gradiente de Pesos:</span>
+                            <div class="math-box text-slate-300 space-y-1">
+                                <div>δ_o1 = (a_o1 - y₁) · σ'(z_o1)</div>
+                                <div class="text-rose-300 font-bold">δ_o1 = (${fmt(net.a2[0])} - ${fmt(net.targets[0])}) × ${fmt(activateDerivative(net.a2[0], net.z2[0]))} = ${fmt(net.delta2[0])}</div>
+                                <div class="pt-1 border-t border-slate-800 text-indigo-300">
+                                    ∂E/∂w2_11 = a_h1 · δ_o1 = ${fmt(net.a1[0])} × ${fmt(net.delta2[0])} = <span class="font-bold text-white">${fmt(net.grad_w2[0][0])}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        ${config.numOutputs > 1 ? `
+                        <div class="bg-slate-900/90 p-3 rounded-lg border border-rose-500/30">
+                            <span class="font-bold text-rose-400 block mb-1">Delta de Salida δ_o2:</span>
+                            <div class="math-box text-slate-300 space-y-1">
+                                <div>δ_o2 = (a_o2 - y₂) · σ'(z_o2)</div>
+                                <div class="text-rose-300 font-bold">δ_o2 = (${fmt(net.a2[1])} - ${fmt(net.targets[1])}) × ${fmt(activateDerivative(net.a2[1], net.z2[1]))} = ${fmt(net.delta2[1])}</div>
+                            </div>
+                        </div>` : ''}
+                    </div>
+                `;
+                comment.innerHTML = "Iniciamos la <strong>Retropropagación</strong>. El delta local ($\delta_{o}$) mide la sensibilidad del error total respecto a las activaciones de la capa final.";
+            }
+            else if (currentStep === 5) {
+                html = `
+                    <div class="space-y-3 text-xs">
+                        <div class="bg-slate-900/90 p-3 rounded-lg border border-rose-500/30">
+                            <span class="font-bold text-rose-400 block mb-1">Propagación del Error a Capa Oculta (δ_h1, δ_h2):</span>
+                            <div class="math-box text-slate-300 space-y-1">
+                                <div>δ_h1 = (δ_o1 · w2_11 ${config.numOutputs > 1 ? '+ δ_o2 · w2_12' : ''}) · σ'(z_h1)</div>
+                                <div class="text-rose-300 font-bold">δ_h1 = ${fmt(net.delta1[0])}</div>
+                                <div class="pt-1 border-t border-slate-800 text-emerald-300">
+                                    ∂E/∂w11 = x₁ · δ_h1 = ${fmt(net.inputs[0])} × ${fmt(net.delta1[0])} = <span class="font-bold text-white">${fmt(net.grad_w1[0][0])}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                comment.innerHTML = "Observa la magia de la <strong>Regla de la Cadena</strong>: La culpa del error cometido en la salida se distribuye proporcionalmente hacia atrás mediante los pesos conectores $W^{(2)}$.";
+            }
+            else if (currentStep === 6) {
+                html = `
+                    <div class="bg-slate-900/90 p-3 rounded-lg border border-indigo-500/30 space-y-2 text-xs">
+                        <span class="font-bold text-indigo-400 block">Actualización de Pesos mediante Descenso de Gradiente (η = ${config.learningRate}):</span>
+                        <div class="math-box text-slate-300 space-y-1.5">
+                            <div class="text-indigo-300">w2_11(nuevo) = w2_11 - η · ∂E/∂w2_11</div>
+                            <div class="text-emerald-300">w2_11 = ${fmt(net.w2[0][0])} - (${config.learningRate} × ${fmt(net.grad_w2[0][0])}) = <span class="font-bold text-white">${fmt(net.w2[0][0] - config.learningRate * net.grad_w2[0][0])}</span></div>
+                            <div class="text-indigo-300">w11(nuevo) = w11 - η · ∂E/∂w11</div>
+                            <div class="text-emerald-300">w11 = ${fmt(net.w1[0][0])} - (${config.learningRate} × ${fmt(net.grad_w1[0][0])}) = <span class="font-bold text-white">${fmt(net.w1[0][0] - config.learningRate * net.grad_w1[0][0])}</span></div>
+                        </div>
+                    </div>
+                `;
+                comment.innerHTML = "¡Los pesos y sesgos han sido ajustados! La red ha aprendido un poco más. Haz clic nuevamente para comenzar la siguiente época y verificar cómo se reduce el error.";
+            }
+
+            container.innerHTML = html;
+        }
+
+        /* SVG Neural Network Visualization */
+        function renderNetworkSVG() {
+            const svg = document.getElementById('net-svg');
+            svg.innerHTML = '';
+
+            const width = 700;
+            const height = 320;
+
+            // Nodes positions
+            const inputNodes = [
+                { x: 100, y: 100, id: 'x1', label: `x₁: ${net.inputs[0]}`, val: net.inputs[0] },
+                { x: 100, y: 220, id: 'x2', label: `x₂: ${net.inputs[1]}`, val: net.inputs[1] }
+            ];
+
+            const hiddenNodes = [
+                { x: 350, y: 100, id: 'h1', z: net.z1[0], a: net.a1[0], delta: net.delta1[0], b: net.b1[0] },
+                { x: 350, y: 220, id: 'h2', z: net.z1[1], a: net.a1[1], delta: net.delta1[1], b: net.b1[1] }
+            ];
+
+            const outputNodes = config.numOutputs === 2 ? [
+                { x: 600, y: 100, id: 'o1', z: net.z2[0], a: net.a2[0], delta: net.delta2[0], target: net.targets[0], b: net.b2[0] },
+                { x: 600, y: 220, id: 'o2', z: net.z2[1], a: net.a2[1], delta: net.delta2[1], target: net.targets[1], b: net.b2[1] }
+            ] : [
+                { x: 600, y: 160, id: 'o1', z: net.z2[0], a: net.a2[0], delta: net.delta2[0], target: net.targets[0], b: net.b2[0] }
+            ];
+
+            // Highlight connections based on current step
+            let forwardActive = currentStep === 1 || currentStep === 2;
+            let backpropActive = currentStep === 4 || currentStep === 5;
+            let updateActive = currentStep === 6;
+
+            // Helper to draw connection lines (Synapses)
+            function drawConnection(x1, y1, x2, y2, weight, isLayer2) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x1);
+                line.setAttribute('y1', y1);
+                line.setAttribute('x2', x2);
+                line.setAttribute('y2', y2);
+
+                let color = weight >= 0 ? '#3b82f6' : '#f43f5e';
+                let strokeWidth = Math.min(Math.max(Math.abs(weight) * 3, 1.5), 6);
+
+                if ((forwardActive && !isLayer2 && currentStep === 1) || (forwardActive && isLayer2 && currentStep === 2)) {
+                    color = '#10b981';
+                    strokeWidth += 2;
+                } else if ((backpropActive && isLayer2 && currentStep === 4) || (backpropActive && !isLayer2 && currentStep === 5)) {
+                    color = '#ec4899';
+                    strokeWidth += 2;
+                } else if (updateActive) {
+                    color = '#6366f1';
+                }
+
+                line.setAttribute('stroke', color);
+                line.setAttribute('stroke-width', strokeWidth);
+                line.setAttribute('opacity', '0.8');
+                svg.appendChild(line);
+
+                // Weight Label
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', (x1 + x2) / 2);
+                text.setAttribute('y', (y1 + y2) / 2 - 6);
+                text.setAttribute('fill', '#94a3b8');
+                text.setAttribute('font-size', '10');
+                text.setAttribute('font-family', 'monospace');
+                text.setAttribute('text-anchor', 'middle');
+                text.textContent = weight.toFixed(2);
+                svg.appendChild(text);
+            }
+
+            // Draw Connections L1
+            inputNodes.forEach((inp, i) => {
+                hiddenNodes.forEach((hid, j) => {
+                    drawConnection(inp.x, inp.y, hid.x, hid.y, net.w1[i][j], false);
+                });
+            });
+
+            // Draw Connections L2
+            hiddenNodes.forEach((hid, j) => {
+                outputNodes.forEach((out, k) => {
+                    drawConnection(hid.x, hid.y, out.x, out.y, net.w2[j][k], true);
+                });
+            });
+
+            // Helper to draw Neuron Nodes
+            function drawNode(x, y, title, valText, colorClass, glow) {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', '24');
+                circle.setAttribute('fill', colorClass);
+                circle.setAttribute('stroke', glow ? '#f59e0b' : '#334155');
+                circle.setAttribute('stroke-width', glow ? '3' : '2');
+                if (glow) circle.setAttribute('class', 'node-pulse');
+                g.appendChild(circle);
+
+                const t1 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                t1.setAttribute('x', x);
+                t1.setAttribute('y', y - 4);
+                t1.setAttribute('fill', '#ffffff');
+                t1.setAttribute('font-size', '11');
+                t1.setAttribute('font-weight', 'bold');
+                t1.setAttribute('text-anchor', 'middle');
+                t1.textContent = title;
+                g.appendChild(t1);
+
+                const t2 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                t2.setAttribute('x', x);
+                t2.setAttribute('y', y + 12);
+                t2.setAttribute('fill', '#cbd5e1');
+                t2.setAttribute('font-size', '10');
+                t2.setAttribute('font-family', 'monospace');
+                t2.setAttribute('text-anchor', 'middle');
+                t2.textContent = valText;
+                g.appendChild(t2);
+
+                svg.appendChild(g);
+            }
+
+            // Draw Nodes
+            inputNodes.forEach(node => {
+                drawNode(node.x, node.y, node.id, `x:${node.val}`, '#1e293b', currentStep === 0);
+            });
+
+            hiddenNodes.forEach(node => {
+                let active = currentStep === 1 || currentStep === 5;
+                drawNode(node.x, node.y, node.id, `a:${node.a.toFixed(2)}`, '#0f766e', active);
+            });
+
+            outputNodes.forEach(node => {
+                let active = currentStep === 2 || currentStep === 3 || currentStep === 4;
+                drawNode(node.x, node.y, node.id, `a:${node.a.toFixed(2)}`, '#4338ca', active);
+            });
+        }
+
+        /* Update Form Inputs for Manual Inspection */
+        function updateMatrixInputs() {
+            document.getElementById('input-w11').value = net.w1[0][0].toFixed(3);
+            document.getElementById('input-w12').value = net.w1[0][1].toFixed(3);
+            document.getElementById('input-w21').value = net.w1[1][0].toFixed(3);
+            document.getElementById('input-w22').value = net.w1[1][1].toFixed(3);
+            document.getElementById('input-b11').value = net.b1[0].toFixed(3);
+            document.getElementById('input-b12').value = net.b1[1].toFixed(3);
+
+            document.getElementById('input-w2_11').value = net.w2[0][0].toFixed(3);
+            document.getElementById('input-w2_21').value = net.w2[1][0].toFixed(3);
+            document.getElementById('input-b21').value = net.b2[0].toFixed(3);
+
+            const is2Outputs = config.numOutputs === 2;
+            document.getElementById('th-o2').style.display = is2Outputs ? '' : 'none';
+            document.getElementById('span-b22').style.display = is2Outputs ? '' : 'none';
+            document.getElementById('input-w2_12').style.display = is2Outputs ? '' : 'none';
+            document.getElementById('input-w2_22').style.display = is2Outputs ? '' : 'none';
+
+            if (is2Outputs) {
+                document.getElementById('input-w2_12').value = net.w2[0][1].toFixed(3);
+                document.getElementById('input-w2_22').value = net.w2[1][1].toFixed(3);
+                document.getElementById('input-b22').value = net.b2[1].toFixed(3);
+            }
+        }
+
+        function manualWeightUpdate() {
+            net.w1[0][0] = parseFloat(document.getElementById('input-w11').value) || 0;
+            net.w1[0][1] = parseFloat(document.getElementById('input-w12').value) || 0;
+            net.w1[1][0] = parseFloat(document.getElementById('input-w21').value) || 0;
+            net.w1[1][1] = parseFloat(document.getElementById('input-w22').value) || 0;
+            net.b1[0] = parseFloat(document.getElementById('input-b11').value) || 0;
+            net.b1[1] = parseFloat(document.getElementById('input-b12').value) || 0;
+
+            net.w2[0][0] = parseFloat(document.getElementById('input-w2_11').value) || 0;
+            net.w2[1][0] = parseFloat(document.getElementById('input-w2_21').value) || 0;
+            net.b2[0] = parseFloat(document.getElementById('input-b21').value) || 0;
+
+            if (config.numOutputs === 2) {
+                net.w2[0][1] = parseFloat(document.getElementById('input-w2_12').value) || 0;
+                net.w2[1][1] = parseFloat(document.getElementById('input-w2_22').value) || 0;
+                net.b2[1] = parseFloat(document.getElementById('input-b22').value) || 0;
+            }
+
+            computeForwardPass();
+            computeBackpropagation();
+            renderAll();
+        }
+
+        /* Highlight Step Badges */
+        function updatePhaseBadges() {
+            for (let i = 0; i <= 6; i++) {
+                const el = document.getElementById(`phase-${i}`);
+                if (i === currentStep) {
+                    el.className = "phase-badge flex items-center gap-2 px-3 py-1.5 rounded-lg border border-brand-500 bg-brand-900/60 text-white font-bold shadow-md";
+                } else {
+                    el.className = "phase-badge flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-400 opacity-60";
+                }
+            }
+        }
+
+        /* Stepper & Execution Flow Control */
+        function nextStep() {
+            if (currentStep === 0) {
+                computeForwardPass();
+                currentStep = 1;
+            } else if (currentStep === 1) {
+                currentStep = 2;
+            } else if (currentStep === 2) {
+                currentStep = 3;
+            } else if (currentStep === 3) {
+                computeBackpropagation();
+                currentStep = 4;
+            } else if (currentStep === 4) {
+                currentStep = 5;
+            } else if (currentStep === 5) {
+                currentStep = 6;
+            } else if (currentStep === 6) {
+                applyGradientUpdates();
+                epochCount++;
+                lossHistory.push(net.lossTotal);
+                updateChart();
+                currentStep = 0;
+            }
+
+            renderAll();
+        }
+
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderAll();
+            }
+        }
+
+        function runFullEpoch() {
+            computeForwardPass();
+            computeBackpropagation();
+            applyGradientUpdates();
+            epochCount++;
+            lossHistory.push(net.lossTotal);
+            currentStep = 6;
+            updateChart();
+            renderAll();
+        }
+
+        function toggleAutoPlay() {
+            const btnText = document.getElementById('auto-text');
+            const btnIcon = document.getElementById('auto-icon');
+
+            if (isAutoPlaying) {
+                clearInterval(autoInterval);
+                isAutoPlaying = false;
+                btnText.innerText = 'Auto-Entrenar';
+                btnIcon.className = 'fa-solid fa-play';
+            } else {
+                isAutoPlaying = true;
+                btnText.innerText = 'Pausar';
+                btnIcon.className = 'fa-solid fa-pause';
+                autoInterval = setInterval(() => {
+                    runFullEpoch();
+                    if (net.lossTotal < 0.001 || epochCount >= 500) {
+                        toggleAutoPlay();
+                    }
+                }, 100);
+            }
+        }
+
+        function resetNetwork() {
+            if (isAutoPlaying) toggleAutoPlay();
+            epochCount = 0;
+            currentStep = 0;
+            lossHistory = [];
+            loadPreset();
+            if (lossChart) {
+                lossChart.data.labels = [];
+                lossChart.data.datasets[0].data = [];
+                lossChart.update();
+            }
+        }
+
+        /* Load Dataset / Presets */
+        function loadPreset() {
+            const preset = document.getElementById('preset-select').value;
+            config.preset = preset;
+
+            if (preset === 'simple') {
+                config.numOutputs = 2;
+                net.inputs = [0.05, 0.10];
+                net.targets = [0.01, 0.99];
+                net.w1 = [[0.15, 0.25], [0.20, 0.30]];
+                net.b1 = [0.35, 0.35];
+                net.w2 = [[0.40, 0.50], [0.45, 0.55]];
+                net.b2 = [0.60, 0.60];
+            } else if (preset === 'xor') {
+                config.numOutputs = 1;
+                net.inputs = [1.0, 0.0];
+                net.targets = [1.0];
+                net.w1 = [[0.5, -0.2], [0.3, 0.8]];
+                net.b1 = [-0.1, 0.2];
+                net.w2 = [[0.7], [-0.4]];
+                net.b2 = [0.1];
+            }
+
+            computeForwardPass();
+            computeBackpropagation();
+            renderAll();
+        }
+
+        function updateActivation() {
+            config.activation = document.getElementById('activation-select').value;
+            computeForwardPass();
+            computeBackpropagation();
+            renderAll();
+        }
+
+        function updateLRDisplay() {
+            const val = parseFloat(document.getElementById('lr-slider').value);
+            config.learningRate = val;
+            document.getElementById('lr-val').innerText = val.toFixed(2);
+        }
+
+        /* Render Tab Switchers */
+        function switchInspectorTab(tab) {
+            document.getElementById('tab-matrices').style.display = tab === 'matrices' ? 'grid' : 'none';
+            document.getElementById('tab-chart').style.display = tab === 'chart' ? 'block' : 'none';
+
+            document.getElementById('tab-btn-matrices').className = tab === 'matrices' ?
+                'px-3 py-1 bg-brand-600 text-white rounded text-xs font-semibold transition' :
+                'px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-xs font-semibold transition';
+
+            document.getElementById('tab-btn-chart').className = tab === 'chart' ?
+                'px-3 py-1 bg-brand-600 text-white rounded text-xs font-semibold transition' :
+                'px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-xs font-semibold transition';
+        }
+
+        function switchTheoryTab(tab) {
+            document.getElementById('content-theory-derivation').style.display = tab === 'derivation' ? 'block' : 'none';
+            document.getElementById('content-theory-quiz').style.display = tab === 'quiz' ? 'block' : 'none';
+
+            document.getElementById('tab-theory-derivation').className = tab === 'derivation' ?
+                'px-5 py-3 text-xs font-bold text-brand-400 border-b-2 border-brand-500 bg-slate-800 transition flex items-center gap-2' :
+                'px-5 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition flex items-center gap-2';
+
+            document.getElementById('tab-theory-quiz').className = tab === 'quiz' ?
+                'px-5 py-3 text-xs font-bold text-brand-400 border-b-2 border-brand-500 bg-slate-800 transition flex items-center gap-2' :
+                'px-5 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition flex items-center gap-2';
+        }
+
+        function toggleModal(id) {
+            const el = document.getElementById(id);
+            el.classList.toggle('hidden');
+        }
+
+        function checkQuiz(q, option) {
+            const res = document.getElementById(`quiz-res-${q}`);
+            if (q === 1) {
+                if (option === 'B') {
+                    res.className = "mt-2 text-[11px] font-bold text-emerald-400";
+                    res.innerText = "¡Correcto! Derivamos la función de activación para saber cómo cambia la activación respecto a la entrada ponderada z.";
+                } else {
+                    res.className = "mt-2 text-[11px] font-bold text-rose-400";
+                    res.innerText = "Incorrecto. Inténtalo de nuevo. Piensa en la regla de la cadena.";
+                }
+            } else if (q === 2) {
+                if (option === 'B') {
+                    res.className = "mt-2 text-[11px] font-bold text-emerald-400";
+                    res.innerText = "¡Excelente! Una tasa demasiado alta produce sobrepasos (overshooting) en la superficie de pérdida.";
+                } else {
+                    res.className = "mt-2 text-[11px] font-bold text-rose-400";
+                    res.innerText = "Incorrecto. Tasa alta implica pasos demasiado grandes.";
+                }
+            }
+        }
+
+        /* Initialize Loss Chart */
+        function initChart() {
+            const ctx = document.getElementById('lossChart').getContext('2d');
+            lossChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Error Total (MSE)',
+                        data: [],
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            grid: { color: '#334155' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } },
+                            title: { display: true, text: 'Épocas', color: '#64748b' }
+                        },
+                        y: {
+                            grid: { color: '#334155' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } },
+                            title: { display: true, text: 'Pérdida (Loss)', color: '#64748b' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }
+                    }
+                }
+            });
+        }
+
+        function updateChart() {
+            if (!lossChart) return;
+            lossChart.data.labels.push(epochCount);
+            lossChart.data.datasets[0].data.push(net.lossTotal);
+            lossChart.update();
+        }
+
+        /* Render LaTeX Static Proof Formulas */
+        function renderStaticKaTeX() {
+            katex.render("E_{total} = \\frac{1}{2} \\sum_{k} (y_k - a_k^{(2)})^2", document.getElementById('latex-eq-1'), { displayMode: true });
+            katex.render("\\frac{\\partial E}{\\partial w_{jk}^{(2)}} = \\frac{\\partial E}{\\partial a_k^{(2)}} \\cdot \\frac{\\partial a_k^{(2)}}{\\partial z_k^{(2)}} \\cdot \\frac{\\partial z_k^{(2)}}{\\partial w_{jk}^{(2)}}", document.getElementById('latex-eq-2'), { displayMode: true });
+            katex.render("\\frac{\\partial E}{\\partial w_{jk}^{(2)}} = a_j^{(1)} \\cdot \\delta_k^{(2)}", document.getElementById('latex-eq-3'), { displayMode: true });
+            katex.render("\\frac{\\partial E}{\\partial w_{ij}^{(1)}} = \\left( \\sum_{k} \\frac{\\partial E}{\\partial z_k^{(2)}} \\frac{\\partial z_k^{(2)}}{\\partial a_j^{(1)}} \\right) \\frac{\\partial a_j^{(1)}}{\\partial z_j^{(1)}} \\frac{\\partial z_j^{(1)}}{\\partial w_{ij}^{(1)}}", document.getElementById('latex-eq-4'), { displayMode: true });
+            katex.render("\\delta_j^{(1)} = \\left( \\sum_{k} \\delta_k^{(2)} \\cdot w_{jk}^{(2)} \\right) \\cdot \\sigma'(z_j^{(1)})", document.getElementById('latex-eq-5'), { displayMode: true });
+        }
+
+        /* Master Render Function */
+        function renderAll() {
+            document.getElementById('epoch-counter').innerText = `Época: ${epochCount} | Paso: ${currentStep}/6`;
+            renderMathBreakdown();
+            renderNetworkSVG();
+            updateMatrixInputs();
+            updatePhaseBadges();
+        }
+
+        /* Window Load Initialization */
+        window.onload = function() {
+            initChart();
+            renderStaticKaTeX();
+            loadPreset();
+        };
+    </script>
+</body>
+</html>

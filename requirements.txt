@@ -1,0 +1,9 @@
+# Dependencias del simulador de Backpropagation
+# Versiones fijadas para que el arranque en Streamlit Community Cloud sea reproducible.
+
+streamlit==1.65.0
+numpy==2.5.3
+pandas==3.0.6
+
+# Solo necesario para ejecutar los tests, no para la app.
+pytest==9.1.1
